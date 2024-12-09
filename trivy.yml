@@ -1,0 +1,60 @@
+name: Build and Scan Docker Image with Trivy
+
+on:
+  push:
+   
+jobs:
+  build_and_scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      # Step 2: Set up Docker Buildx (to build multi-platform images if necessary)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # Step 3: Cache Docker layers to speed up builds (optional)
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Step 4: Build Docker image
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }} .
+
+      # Step 5: Download and install Trivy
+      - name: Download and install Trivy
+        run: |
+          sudo apt-get install rpm
+          wget https://github.com/aquasecurity/trivy/releases/download/v${{ secrets.TRIVY_VERSION }}/trivy_${{ secrets.TRIVY_VERSION }}_Linux-64bit.deb
+          sudo dpkg -i trivy_${{ secrets.TRIVY_VERSION }}_Linux-64bit.deb
+          trivy -v
+
+      # Step 6: Scan Docker image with Trivy
+      - name: Scan Docker Image
+        run: |
+          trivy image --exit-code 1 --severity HIGH,CRITICAL --output image-report-${{ github.sha }}.json ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }}
+        continue-on-error: true
+
+      # Step 7: Publish image scan report to artifacts
+      - name: Publish scan report as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: image-report
+          path: ./image-report-${{ github.sha }}.json
+        continue-on-error: true
+
+      # Step 8: Optional step for pushing to ECR (if required)
+      - name: Push Docker image to ECR
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_URI }}
+          docker tag ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }} ${{ secrets.AWS_ECR_URI }}/my-repo:${{ github.sha }}
+          docker push ${{ secrets.AWS_ECR_URI }}/my-repo:${{ github.sha }}
