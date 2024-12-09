@@ -2,17 +2,18 @@ name: Build and Scan Docker Image with Trivy
 
 on:
   push:
-  
+ 
+
 jobs:
   build_and_scan:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout code
+      # Step 1: Checkout the code from the repository
       - name: Checkout code
         uses: actions/checkout@v2
 
-      # Step 2: Set up Docker Buildx (for multi-platform builds if needed)
+      # Step 2: Set up Docker Buildx (optional for multi-platform support)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
@@ -25,36 +26,36 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      # Step 4: Build Docker image with proper tag
+      # Step 4: Build the Docker image and tag it
       - name: Build Docker image
         run: |
           docker build -t ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }} .
 
-      # Step 5: Download and install Trivy
-      - name: Download and install Trivy
+      # Step 5: Install Trivy for scanning
+      - name: Download and Install Trivy
         run: |
-          sudo apt-get install rpm
+          sudo apt-get install -y wget apt-transport-https
           wget https://github.com/aquasecurity/trivy/releases/download/v${{ secrets.TRIVY_VERSION }}/trivy_${{ secrets.TRIVY_VERSION }}_Linux-64bit.deb
           sudo dpkg -i trivy_${{ secrets.TRIVY_VERSION }}_Linux-64bit.deb
           trivy -v
 
-      # Step 6: Scan Docker image with Trivy
+      # Step 6: Scan the Docker image with Trivy
       - name: Scan Docker Image
         run: |
-          trivy image --exit-code 1 --severity HIGH,CRITICAL --output image-report-${{ github.sha }}.json ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }}
+          trivy image --exit-code 1 --severity HIGH,CRITICAL --output trivy-report-${{ github.sha }}.json ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }}
         continue-on-error: true
 
-      # Step 7: Publish the scan report as an artifact
-      - name: Publish scan report as artifact
+      # Step 7: Publish Trivy report as an artifact
+      - name: Publish Trivy report as artifact
         uses: actions/upload-artifact@v3
         with:
-          name: image-report
-          path: ./image-report-${{ github.sha }}.json
+          name: trivy-report
+          path: ./trivy-report-${{ github.sha }}.json
         continue-on-error: true
 
-      # Optional Step: Push Docker image to ECR (if needed)
+      # Step 8: Push the Docker image to ECR (optional)
       - name: Push Docker image to ECR
         run: |
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_URI }}
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_URI }}
           docker tag ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }} ${{ secrets.AWS_ECR_URI }}/my-repo:${{ github.sha }}
           docker push ${{ secrets.AWS_ECR_URI }}/my-repo:${{ github.sha }}
