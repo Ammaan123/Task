@@ -32,30 +32,4 @@ jobs:
           docker build -t amaan .
 
       # Step 5: Install Trivy for scanning
-      - name: Download and Install Trivy
-        run: |
-          sudo apt-get install -y wget apt-transport-https
-          wget https://github.com/aquasecurity/trivy/releases/download/v${{ secrets.TRIVY_VERSION }}/trivy_${{ secrets.TRIVY_VERSION }}_Linux-64bit.deb
-          sudo dpkg -i trivy_${{ secrets.TRIVY_VERSION }}_Linux-64bit.deb
-          trivy -v
-
-      # Step 6: Scan the Docker image with Trivy
-      - name: Scan Docker Image
-        run: |
-          trivy image --exit-code 1 --severity HIGH,CRITICAL --output trivy-report-${{ github.sha }}.json ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }}
-        continue-on-error: true
-
-      # Step 7: Publish Trivy report as an artifact
-      - name: Publish Trivy report as artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: trivy-report
-          path: ./trivy-report-${{ github.sha }}.json
-        continue-on-error: true
-
-      # Step 8: Push the Docker image to ECR (optional)
-      - name: Push Docker image to ECR
-        run: |
-          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ECR_URI }}
-          docker tag ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }} ${{ secrets.AWS_ECR_URI }}/my-repo:${{ github.sha }}
-          docker push ${{ secrets.AWS_ECR_URI }}/my-repo:${{ github.sha }}
+    
