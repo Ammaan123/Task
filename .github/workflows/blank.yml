@@ -29,7 +29,7 @@ jobs:
       # Step 4: Build the Docker image and tag it
       - name: Build Docker image
         run: |
-          docker build -t ${{ secrets.AWS_ECR_IMAGE_URI_DEV }}:${{ github.sha }} .
+          docker build -t amaan .
 
       # Step 5: Install Trivy for scanning
       - name: Download and Install Trivy
